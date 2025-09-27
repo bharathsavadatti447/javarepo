@@ -1,67 +1,88 @@
 pipeline {
     agent { label 'Node-Linux' }
 
+    tools {
+        jdk 'Java-21'
+        maven 'Maven'
+    }
+
     environment {
-        GIT_REPO = 'https://github.com/bharathsavadatti447/javarepo.git'
-        BRANCH   = 'main'
+        GIT_REPO = 'https://github.com/bharathsavadatti447/git_assignment_27092025.git'
+        BRANCH = 'main'
+        EMAIL_RECIPIENTS = 'bharath.savadatti447@gmail.com'
+        CUSTOM_SRC = '.'  // Java files location
     }
 
     stages {
-        stage('Clone') {
+
+        stage('Clean Workspace') {
             steps {
-                echo "Cloning the repo from Github ........."
-                git branch: "${BRANCH}",
-                    url: "${GIT_REPO}",
-                    credentialsId: 'a5e5c631-8e24-48ee-9844-ea7c8b7a658d'
+                echo "Cleaning workspace..."
+                deleteDir()
             }
         }
 
-        stage('Build') {
+        stage('Checkout') {
             steps {
-                sh 'chmod +x run_maven_project.sh'
-                sh './run_maven_project.sh'
-                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
+                echo "Cloning repository from GitHub..."
+                git branch: "${BRANCH}",
+                    url: "${GIT_REPO}",
+                    credentialsId: 'github'
+            }
+        }
 
+        stage('Build & Test') {
+            steps {
+                echo "Compiling and testing Maven project..."
+                sh "mvn clean compile -Dproject.build.sourceDirectory=${CUSTOM_SRC}"
+                sh "mvn test -Dproject.build.sourceDirectory=${CUSTOM_SRC}"
+            }
+        }
+        stage('Package & Archive') {
+            steps {
+                echo "Packaging project and archiving JAR..."
+                sh "mvn package -Dproject.build.sourceDirectory=${CUSTOM_SRC}"
+                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
             }
         }
 
         stage('Lint') {
             steps {
                 echo "Running lint checks..."
-                // Example: sh 'lint-tool build/'
+                // Example: sh "mvn checkstyle:check -Dproject.build.sourceDirectory=${CUSTOM_SRC}"
             }
         }
     }
 
     post {
         always {
-            echo 'Pipeline finished (success/failure/unstable).'
+            echo "Pipeline finished."
         }
+
         success {
-            echo 'Build succeeded!'
+            echo "Build succeeded!"
             emailext(
                 subject: "Build Success: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
-                body: """<p>Build succeeded in job <b>${env.JOB_NAME}</b> [#${env.BUILD_NUMBER}]</p>""",
-                recipientProviders: [[$class: 'DevelopersRecipientProvider']],
-                to: "bharath.savadatti447@gmail.com"
+                body: "<p>Build succeeded in job <b>${env.JOB_NAME}</b> [#${env.BUILD_NUMBER}]</p>",
+                to: "${EMAIL_RECIPIENTS}"
             )
         }
+
         unstable {
-            echo 'Build marked as UNSTABLE!'
+            echo "Build marked as UNSTABLE!"
             emailext(
                 subject: "Build Unstable: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
-                body: """<p>Build became <b>UNSTABLE</b> in job <b>${env.JOB_NAME}</b> [#${env.BUILD_NUMBER}]</p>""",
-                recipientProviders: [[$class: 'DevelopersRecipientProvider']],
-                to: "bharath.savadatti447@gmail.com"
+                body: "<p>Build became <b>UNSTABLE</b> in job <b>${env.JOB_NAME}</b> [#${env.BUILD_NUMBER}]</p>",
+                to: "${EMAIL_RECIPIENTS}"
             )
         }
+
         failure {
-            echo 'Build failed!'
+            echo "Build failed!"
             emailext(
                 subject: "Build Failed: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
-                body: """<p>Build failed in job <b>${env.JOB_NAME}</b> [#${env.BUILD_NUMBER}]</p>""",
-                recipientProviders: [[$class: 'DevelopersRecipientProvider']],
-                to: "bharath.savadatti447@gmail.com"
+                body: "<p>Build failed in job <b>${env.JOB_NAME}</b> [#${env.BUILD_NUMBER}]</p>",
+                to: "${EMAIL_RECIPIENTS}"
             )
         }
     }
